@@ -33,7 +33,7 @@ def handle(conn, addr, args):
     size = hdr.get("size")
     src_name = os.path.basename(hdr.get("source", "image"))
     tag = (args.case + "_") if args.case else ""
-    out_path = os.path.join(args.outdir, f"{tag}{src_name}.dd")
+    out_path = os.path.join(args.outdir, f"{tag}{src_name}.img")
     if os.path.exists(out_path):
         print(f"[{addr}] REFUSING to overwrite {out_path}; skipping", file=sys.stderr)
         return
