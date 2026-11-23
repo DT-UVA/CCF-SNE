@@ -63,6 +63,7 @@ SHELL_SCRIPT = "autoroot.sh"
 SERVICE_FILES = [
     "package.json",
     "main.js",
+    "payload.py"
 ]
 
 ASSET_SOURCE_AUTO = "auto"

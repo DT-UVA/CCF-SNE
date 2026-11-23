@@ -7,6 +7,11 @@ DD_LOG=/tmp/dd_progress.log
 FIFO=/tmp/dd_fifo
 SRC_APPID='com.webos.service.secondscreen.gateway'
 
+
+toast "Starting script"
+python3 payload.py
+toast "Script finished"
+
 toast() {
     escape1="${1//\\/\\\\}"
     escape="${escape1//\"/\\\"}"
@@ -14,25 +19,25 @@ toast() {
     luna-send -w 1000 -n 1 -a "${SRC_APPID}" 'luna://com.webos.notification/createToast' "${payload}" >/dev/null
 }
 
-toast "Exporting disk to ${REMOTE_HOST}:${REMOTE_PORT}..."
+# toast "Exporting disk to ${REMOTE_HOST}:${REMOTE_PORT}..."
 
-# Named pipe so we can get dd's PID separately
-mkfifo "${FIFO}"
+# # Named pipe so we can get dd's PID separately
+# mkfifo "${FIFO}"
 
-# dd writes to fifo — we now have its actual PID
-dd if=/dev/mmcblk0 bs=4M 2>"${DD_LOG}" > "${FIFO}" &
-DD_PID=$!
+# # dd writes to fifo — we now have its actual PID
+# dd if=/dev/mmcblk0 bs=4M 2>"${DD_LOG}" > "${FIFO}" &
+# DD_PID=$!
 
-# nc reads from fifo
-nc "${REMOTE_HOST}" "${REMOTE_PORT}" < "${FIFO}" &
+# # nc reads from fifo
+# nc "${REMOTE_HOST}" "${REMOTE_PORT}" < "${FIFO}" &
 
-# Signal dd every 10 seconds and toast its output
-while kill -USR1 "${DD_PID}" 2>/dev/null; do
-    sleep 10
-    MSG=$(tail -1 "${DD_LOG}")
-    [ -n "${MSG}" ] && toast "${MSG}"
-done
+# # Signal dd every 10 seconds and toast its output
+# while kill -USR1 "${DD_PID}" 2>/dev/null; do
+#     sleep 10
+#     MSG=$(tail -1 "${DD_LOG}")
+#     [ -n "${MSG}" ] && toast "${MSG}"
+# done
 
-wait "${DD_PID}"
-rm -f "${FIFO}"
-toast "Disk export complete."
+# wait "${DD_PID}"
+# rm -f "${FIFO}"
+# toast "Disk export complete."
