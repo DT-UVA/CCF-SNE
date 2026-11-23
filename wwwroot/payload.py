@@ -33,16 +33,17 @@ def utc():
 
 def read_text(path):
     try:
-        with open(path, encoding='latin-1') as f:
-            return f.read().strip()
+        with open(path, "rb") as f:
+            return f.read().strip().decode('utf-8', errors='replace')
     except OSError:
         return None
 
 def readable_ranges():
     ranges = []
     try:
-        with open("/proc/iomem", encoding='latin-1') as f:
+        with open("/proc/iomem", "rb") as f:
             for line in f:
+                line = line.decode('utf-8', errors='replace')
                 if "System RAM" in line:
                     addr_range = line.split(":")[0].strip()
                     start, end = addr_range.split("-")
@@ -53,8 +54,9 @@ def readable_ranges():
 
 def device_size(path):
     if path == "/dev/mem":
-        with open("/proc/meminfo", encoding='latin-1') as f:
+        with open("/proc/meminfo", "rb") as f:
             for line in f:
+                line = line.decode('utf-8', errors='replace')
                 if line.startswith("MemTotal:"):
                     return int(line.split()[1]) * 1024
         return None
@@ -86,7 +88,7 @@ def collect_metadata():
             meta[label] = val
     return {k: v for k, v in meta.items() if v}
 
-def dump(recv_host, recv_port, source, examiner, progress_callback=None):
+def dump(recv_host, recv_port, source, examiner, progress_callback=None, metadata=None):
     size = device_size(source)
     is_mem = source == "/dev/mem"
 
@@ -96,14 +98,14 @@ def dump(recv_host, recv_port, source, examiner, progress_callback=None):
         "examiner": examiner,
         "start_utc": utc(),
         "chunk": CHUNK,
-        "tv_metadata": collect_metadata(),
+        "tv_metadata": metadata or {},
     }
 
     sha, md5, sent = hashlib.sha256(), hashlib.md5(), 0
     last_progress = -1
 
     s = socket.create_connection((recv_host, recv_port))
-    s.sendall((json.dumps(header) + "\n").encode())
+    s.sendall((json.dumps(header, ensure_ascii=True) + "\n").encode('utf-8', errors='replace'))
 
     with open(source, "rb", buffering=0) as dev:
         if is_mem:
@@ -153,7 +155,7 @@ def dump(recv_host, recv_port, source, examiner, progress_callback=None):
         "end_utc": utc()
     }
 
-    s.sendall((json.dumps(trailer) + "\n").encode())
+    s.sendall((json.dumps(trailer, ensure_ascii=True) + "\n").encode('utf-8', errors='replace'))
     s.shutdown(socket.SHUT_WR)
     s.close()
     print(json.dumps(trailer, indent=2), file=sys.stderr)
@@ -173,12 +175,14 @@ def dump_worker():
             else:
                 toast(f"Extracted {sent} bytes")
 
+        metadata = collect_metadata()
+
         toast("Starting memory extraction...")
-        result = dump(REMOTE_HOST, REMOTE_PORT, "/dev/mem", "Examiner1", progress_callback=report_progress)
+        result = dump(REMOTE_HOST, REMOTE_PORT, "/dev/mem", "Examiner1", progress_callback=report_progress, metadata=metadata)
         toast(f"Memory extraction completed! {result['bytes_sent']} bytes transferred.")
 
         toast("Starting disk extraction...")
-        result = dump(REMOTE_HOST, REMOTE_PORT, "/dev/mmcblk0", "Examiner1", progress_callback=report_progress)
+        result = dump(REMOTE_HOST, REMOTE_PORT, "/dev/mmcblk0", "Examiner1", progress_callback=report_progress, metadata=metadata)
         toast(f"Disk extraction completed! {result['bytes_sent']} bytes transferred.")
 
     except Exception as e:
