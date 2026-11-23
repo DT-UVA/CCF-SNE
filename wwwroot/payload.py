@@ -9,7 +9,7 @@ import sys
 
 SCRIPT_NAME='ddTV'
 REMOTE_HOST="10.0.0.1"
-REMOTE_PORT="4444"
+REMOTE_PORT=4444
 SRC_APPID='com.webos.service.secondscreen.gateway'
 CHUNK = 4 * 1024 * 1024
 
@@ -22,7 +22,6 @@ def toast(message):
         "sourceId": SRC_APPID,
         "message": f"<h3>{SCRIPT_NAME}</h3>{message}"
     }
-
     subprocess.run(
         [
             "luna-send",
@@ -40,7 +39,6 @@ def toast(message):
 def utc():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-
 def read_text(path):
     try:
         with open(path) as f:
@@ -48,9 +46,21 @@ def read_text(path):
     except OSError:
         return None
 
+def readable_ranges():
+    """Return (start, end) pairs for System RAM regions from /proc/iomem."""
+    ranges = []
+    try:
+        with open("/proc/iomem") as f:
+            for line in f:
+                if "System RAM" in line:
+                    addr_range = line.split(":")[0].strip()
+                    start, end = addr_range.split("-")
+                    ranges.append((int(start, 16), int(end, 16)))
+    except OSError as e:
+        print(f"Cannot read /proc/iomem: {e}", file=sys.stderr)
+    return ranges
 
 def device_size(path):
-    # Physical memory: report kernel-visible RAM size
     if path == "/dev/mem":
         with open("/proc/meminfo") as f:
             for line in f:
@@ -58,7 +68,6 @@ def device_size(path):
                     return int(line.split()[1]) * 1024
         return None
 
-    # Regular files and supported block devices
     try:
         with open(path, "rb", buffering=0) as f:
             size = f.seek(0, os.SEEK_END)
@@ -68,7 +77,6 @@ def device_size(path):
         print(f"Cannot determine size of {path}: {e}", file=sys.stderr)
 
     return None
-
 
 def collect_metadata():
     u = os.uname()
@@ -91,6 +99,7 @@ def collect_metadata():
 
 def dump(recv_host, recv_port, source, examiner, progress_callback=None):
     size = device_size(source)
+    is_mem = source == "/dev/mem"
 
     header = {
         "source": source,
@@ -102,34 +111,53 @@ def dump(recv_host, recv_port, source, examiner, progress_callback=None):
     }
 
     sha, md5, sent = hashlib.sha256(), hashlib.md5(), 0
+    last_progress = -1
 
     s = socket.create_connection((recv_host, recv_port))
     s.sendall((json.dumps(header) + "\n").encode())
 
-    last_progress = -1
-
     with open(source, "rb", buffering=0) as dev:
-        while True:
-            buf = dev.read(CHUNK)
-            if not buf:
-                break
+        if is_mem:
+            ranges = readable_ranges()
+            if not ranges:
+                raise RuntimeError("No readable RAM ranges found in /proc/iomem")
+            for start, end in ranges:
+                dev.seek(start)
+                remaining = end - start + 1
+                while remaining > 0:
+                    buf = dev.read(min(CHUNK, remaining))
+                    if not buf:
+                        break
+                    s.sendall(buf)
+                    sha.update(buf)
+                    md5.update(buf)
+                    sent += len(buf)
+                    remaining -= len(buf)
 
-            s.sendall(buf)
-            sha.update(buf)
-            md5.update(buf)
-            sent += len(buf)
+                    if size:
+                        progress = sent * 100 // size
+                        if progress >= last_progress + 5:
+                            last_progress = progress
+                            if progress_callback:
+                                progress_callback(progress, sent, size)
+        else:
+            while True:
+                buf = dev.read(CHUNK)
+                if not buf:
+                    break
+                s.sendall(buf)
+                sha.update(buf)
+                md5.update(buf)
+                sent += len(buf)
 
-            if size:
-                progress = sent * 100 // size
-
-                if progress >= last_progress + 5:
-                    last_progress = progress
-
-                    if progress_callback:
-                        progress_callback(progress, sent, size)
-
-            elif progress_callback and sent % (10 * 1024 * 1024) < CHUNK:
-                progress_callback(None, sent, 0)
+                if size:
+                    progress = sent * 100 // size
+                    if progress >= last_progress + 5:
+                        last_progress = progress
+                        if progress_callback:
+                            progress_callback(progress, sent, size)
+                elif progress_callback and sent % (10 * 1024 * 1024) < CHUNK:
+                    progress_callback(None, sent, 0)
 
     trailer = {
         "source_sha256": sha.hexdigest(),
@@ -149,9 +177,7 @@ def dump(recv_host, recv_port, source, examiner, progress_callback=None):
 
     return trailer
 
-
 def dump_worker():
-
     try:
         toast("Starting forensic extraction...")
 
@@ -162,34 +188,19 @@ def dump_worker():
                 toast(f"Extracted {sent} bytes")
 
         toast("Starting memory extraction...")
-
-        result = dump("10.0.0.10", 4000, "/dev/mem", "Examiner1", progress_callback=report_progress)
-
-        toast(
-            f"Memory extraction completed! "
-            f"{result['bytes_sent']} bytes transferred."
-        )
+        result = dump(REMOTE_HOST, REMOTE_PORT, "/dev/mem", "Examiner1", progress_callback=report_progress)
+        toast(f"Memory extraction completed! {result['bytes_sent']} bytes transferred.")
 
         toast("Starting disk extraction...")
-
-        result = dump("10.0.0.10", 4000, "/dev/mmcblk0", "Examiner1", progress_callback=report_progress)
-
-        toast(
-            f"Disk extraction completed! "
-            f"{result['bytes_sent']} bytes transferred."
-        )
+        result = dump(REMOTE_HOST, REMOTE_PORT, "/dev/mmcblk0", "Examiner1", progress_callback=report_progress)
+        toast(f"Disk extraction completed! {result['bytes_sent']} bytes transferred.")
 
     except Exception as e:
         toast(f"Extraction failed: {str(e)}")
         raise
 
-
 def start_dump():
-    thread = threading.Thread(
-        target=dump_worker,
-        daemon=False
-    )
-
+    thread = threading.Thread(target=dump_worker, daemon=False)
     thread.start()
     return thread
 
