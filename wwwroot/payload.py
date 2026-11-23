@@ -52,14 +52,12 @@ def readable_ranges():
         print(f"Cannot read /proc/iomem: {e}", file=sys.stderr)
     return ranges
 
+def mem_size():
+    return sum(end - start + 1 for start, end in readable_ranges())
+
 def device_size(path):
     if path == "/dev/mem":
-        with open("/proc/meminfo", "rb") as f:
-            for line in f:
-                line = line.decode('utf-8', errors='replace')
-                if line.startswith("MemTotal:"):
-                    return int(line.split()[1]) * 1024
-        return None
+        return mem_size()
     try:
         with open(path, "rb", buffering=0) as f:
             size = f.seek(0, os.SEEK_END)
