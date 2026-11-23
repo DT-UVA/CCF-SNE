@@ -7,7 +7,7 @@ import hashlib
 import socket
 import sys
 
-SCRIPT_NAME='SlopBro'
+SCRIPT_NAME='ddTV'
 REMOTE_HOST="10.0.0.1"
 REMOTE_PORT="4444"
 SRC_APPID='com.webos.service.secondscreen.gateway'
@@ -60,7 +60,7 @@ def device_size(path):
         fld = line.split()
         if len(fld) == 4 and fld[3] == name:
             return int(fld[2]) * 1024
-    return Noneimport datetime
+    return Noneimport
 
 
 def collect_metadata():

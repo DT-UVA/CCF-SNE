@@ -1,16 +1,11 @@
 #!/bin/sh
 
-SCRIPT_NAME='SlopBro'
+SCRIPT_NAME='ddTV'
 REMOTE_HOST="10.0.0.1"
 REMOTE_PORT="4444"
 DD_LOG=/tmp/dd_progress.log
 FIFO=/tmp/dd_fifo
 SRC_APPID='com.webos.service.secondscreen.gateway'
-
-
-toast "Starting script"
-python3 payload.py
-toast "Script finished"
 
 toast() {
     escape1="${1//\\/\\\\}"
@@ -18,6 +13,11 @@ toast() {
     payload="$(printf '{"sourceId":"%s","message":"<h3>%s</h3>%s"}' "${SRC_APPID}" "${SCRIPT_NAME}" "${escape}")"
     luna-send -w 1000 -n 1 -a "${SRC_APPID}" 'luna://com.webos.notification/createToast' "${payload}" >/dev/null
 }
+
+toast "Starting script"
+python3 payload.py
+toast "Script finished"
+
 
 # toast "Exporting disk to ${REMOTE_HOST}:${REMOTE_PORT}..."
 
