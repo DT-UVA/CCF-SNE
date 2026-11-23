@@ -1,8 +1,10 @@
-SCRIPT_NAME='Forensics tool'
+import os
+import json
+import subprocess
+
+SCRIPT_NAME='SlopBro'
 REMOTE_HOST="10.0.0.1"
 REMOTE_PORT="4444"
-DD_LOG=/tmp/dd_progress.log
-FIFO=/tmp/dd_fifo
 SRC_APPID='com.webos.service.secondscreen.gateway'
 
 def main():
