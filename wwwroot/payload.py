@@ -8,7 +8,7 @@ import socket
 import sys
 
 SCRIPT_NAME='ddTV'
-REMOTE_HOST="10.0.0.1"
+REMOTE_HOST="10.0.0.10"
 REMOTE_PORT=4444
 SRC_APPID='com.webos.service.secondscreen.gateway'
 CHUNK = 4 * 1024 * 1024
@@ -23,17 +23,9 @@ def toast(message):
         "message": f"<h3>{SCRIPT_NAME}</h3>{message}"
     }
     subprocess.run(
-        [
-            "luna-send",
-            "-w", "1000",
-            "-n", "1",
-            "-a", SRC_APPID,
-            "luna://com.webos.notification/createToast",
-            json.dumps(payload)
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False
+        ["luna-send", "-w", "1000", "-n", "1", "-a", SRC_APPID,
+         "luna://com.webos.notification/createToast", json.dumps(payload)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False
     )
 
 def utc():
@@ -41,16 +33,15 @@ def utc():
 
 def read_text(path):
     try:
-        with open(path) as f:
+        with open(path, encoding='latin-1') as f:
             return f.read().strip()
     except OSError:
         return None
 
 def readable_ranges():
-    """Return (start, end) pairs for System RAM regions from /proc/iomem."""
     ranges = []
     try:
-        with open("/proc/iomem") as f:
+        with open("/proc/iomem", encoding='latin-1') as f:
             for line in f:
                 if "System RAM" in line:
                     addr_range = line.split(":")[0].strip()
@@ -62,12 +53,11 @@ def readable_ranges():
 
 def device_size(path):
     if path == "/dev/mem":
-        with open("/proc/meminfo") as f:
+        with open("/proc/meminfo", encoding='latin-1') as f:
             for line in f:
                 if line.startswith("MemTotal:"):
                     return int(line.split()[1]) * 1024
         return None
-
     try:
         with open(path, "rb", buffering=0) as f:
             size = f.seek(0, os.SEEK_END)
@@ -75,7 +65,6 @@ def device_size(path):
                 return size
     except OSError as e:
         print(f"Cannot determine size of {path}: {e}", file=sys.stderr)
-
     return None
 
 def collect_metadata():
@@ -133,7 +122,6 @@ def dump(recv_host, recv_port, source, examiner, progress_callback=None):
                     md5.update(buf)
                     sent += len(buf)
                     remaining -= len(buf)
-
                     if size:
                         progress = sent * 100 // size
                         if progress >= last_progress + 5:
@@ -149,7 +137,6 @@ def dump(recv_host, recv_port, source, examiner, progress_callback=None):
                 sha.update(buf)
                 md5.update(buf)
                 sent += len(buf)
-
                 if size:
                     progress = sent * 100 // size
                     if progress >= last_progress + 5:
@@ -169,7 +156,6 @@ def dump(recv_host, recv_port, source, examiner, progress_callback=None):
     s.sendall((json.dumps(trailer) + "\n").encode())
     s.shutdown(socket.SHUT_WR)
     s.close()
-
     print(json.dumps(trailer, indent=2), file=sys.stderr)
 
     if size and sent != size:
