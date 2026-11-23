@@ -154,10 +154,21 @@ def dump_worker():
             else:
                 toast(f"Extracted {sent} bytes")
 
+        toast("Starting memory extraction...")
+
+        result = dump("10.0.0.10", 4000, "/dev/mem", "Examiner1", progress_callback=report_progress)
+
+        toast(
+            f"Memory extraction completed! "
+            f"{result['bytes_sent']} bytes transferred."
+        )
+
+        toast("Starting disk extraction...")
+
         result = dump("10.0.0.10", 4000, "/dev/mmcblk0", "Examiner1", progress_callback=report_progress)
 
         toast(
-            f"Extraction completed! "
+            f"Disk extraction completed! "
             f"{result['bytes_sent']} bytes transferred."
         )
 
