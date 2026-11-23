@@ -50,17 +50,24 @@ def read_text(path):
 
 
 def device_size(path):
-    with open(path, "rb", buffering=0) as f:
-        size = f.seek(0, os.SEEK_END)
-    if size:
-        return size
-    # fallback: /proc/partitions (1 KiB blocks)
-    name = os.path.basename(path)
-    for line in (read_text("/proc/partitions") or "").splitlines()[2:]:
-        fld = line.split()
-        if len(fld) == 4 and fld[3] == name:
-            return int(fld[2]) * 1024
-    return Noneimport
+    # Physical memory: report kernel-visible RAM size
+    if path == "/dev/mem":
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    return int(line.split()[1]) * 1024
+        return None
+
+    # Regular files and supported block devices
+    try:
+        with open(path, "rb", buffering=0) as f:
+            size = f.seek(0, os.SEEK_END)
+            if size > 0:
+                return size
+    except OSError as e:
+        print(f"Cannot determine size of {path}: {e}", file=sys.stderr)
+
+    return None
 
 
 def collect_metadata():
